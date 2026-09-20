@@ -1,0 +1,45 @@
+%%{init: {'theme': 'default', 'flowchart': {'curve': 'orthogonal'}}}%%
+flowchart TD
+    subgraph LOCAL["LOCAL MACHINE"]
+        Sim["Virtual IoT Simulator\n(Node.js)\n50 virtual devices"]
+        Web["React Dashboard\n(Vite SPA)\nhttp://localhost:5173"]
+    end
+
+    subgraph AWS["AWS (ap-south-1 — Mumbai)"]
+        IoT["AWS IoT Core\nMQTT/TLS ingestion"]
+        Rule["IoT Rules Engine\ncampus/telemetry/+"]
+        Proc["Processor Lambda\nCampusSenseProcessor\nNode.js 22.x"]
+        API["API Lambda\nCampusSenseApi\nNode.js 22.x"]
+        GW["API Gateway\nHTTP API"]
+
+        subgraph DDB["Amazon DynamoDB"]
+            T1["CampusDevices\nPK: deviceId"]
+            T2["CampusReadings\nPK: deviceId | SK: timestamp\nTTL: expiresAt"]
+            T3["CampusCurrent\nPK: deviceId"]
+            T4["CampusAlerts\nPK: campusId | SK: sk"]
+            T5["CampusSystemStats\nPK: metricId"]
+        end
+
+        SNS["Amazon SNS\nCampusSenseAlerts\n(email)"]
+        CW["Amazon CloudWatch Logs\n/aws/lambda/CampusSense*"]
+        S3["Amazon S3\nStatic website hosting\nfrontend/dist/"]
+    end
+
+    Sim -->|"MQTT/TLS port 8883"| IoT
+    IoT --> Rule
+    Rule -->|"invoke per message"| Proc
+    Proc -->|"read device config"| T1
+    Proc -->|"write history"| T2
+    Proc -->|"upsert snapshot"| T3
+    Proc -->|"write alert"| T4
+    Proc -->|"update counters"| T5
+    Proc -->|"threshold breach"| SNS
+    Proc -->|"structured logs"| CW
+    API -->|"read"| T1
+    API -->|"read"| T2
+    API -->|"read"| T3
+    API -->|"read"| T4
+    API -->|"read"| T5
+    GW -->|"Lambda proxy"| API
+    Web -->|"HTTPS REST"| GW
+    S3 -->|"serves static files"| Web

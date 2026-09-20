@@ -1,0 +1,18 @@
+{
+  "name": "campus-temp-monitor",
+  "version": "1.0.0",
+  "description": "CampusSense — VIT Chennai Campus Temperature & Humidity Monitoring System",
+  "private": true,
+  "scripts": {
+    "install:all":    "npm install --prefix backend && npm install --prefix simulator && npm install --prefix frontend",
+    "build:backend":  "npm run build --prefix backend",
+    "build:frontend": "npm run build --prefix frontend",
+    "typecheck":      "npm run typecheck --prefix backend && npm run typecheck --prefix simulator && npm run typecheck --prefix frontend",
+    "test":           "npm run test --prefix backend",
+    "dev":            "npm run dev --prefix frontend",
+    "simulate:once":  "npm run simulate --prefix simulator -- --once",
+    "simulate":       "npm run simulate --prefix simulator",
+    "simulate:dev":   "npm run dev --prefix simulator"
+  }
+}
+

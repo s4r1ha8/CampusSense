@@ -1,0 +1,399 @@
+# ===========================================================================
+# CampusSense — AWS SAM / CloudFormation Infrastructure Blueprint
+#
+# STATUS: ARCHITECTURE REFERENCE — NOT DEPLOYED.
+#         This file describes the complete AWS infrastructure for CampusSense.
+#         Resources must be created MANUALLY through the AWS Console.
+#         See docs/AWS_CONSOLE_CHECKLIST.md for the step-by-step guide.
+#
+# REGION: ap-south-1 (Mumbai)
+# ===========================================================================
+
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  CampusSense — VIT Chennai Campus Temperature & Humidity Monitoring System.
+  Serverless IoT architecture using AWS IoT Core, Lambda, DynamoDB, API Gateway,
+  SNS, and S3. Designed for AWS Free Tier / student accounts.
+
+# ===========================================================================
+# Parameters — fill these in when deploying via AWS Console or SAM
+# ===========================================================================
+
+Parameters:
+
+  # The email address where alert notifications will be sent.
+  # You MUST confirm the subscription in your inbox after creating the SNS topic.
+  AlertEmailAddress:
+    Type:        String
+    Default:     your-email@example.com
+    Description: >
+      Email address to receive temperature/humidity threshold alert notifications.
+      CHANGE THIS before deploying.
+
+  # TTL for historical readings in CampusReadings table.
+  ReadingTtlDays:
+    Type:    Number
+    Default: 90
+    Description: >
+      Number of days to keep historical sensor readings before DynamoDB TTL
+      automatically deletes them. 90 days keeps storage well within Free Tier.
+
+  Environment:
+    Type:    String
+    Default: production
+    AllowedValues: [production, development]
+    Description: Deployment environment tag.
+
+# ===========================================================================
+# Globals — shared settings for all Lambda functions
+# ===========================================================================
+
+Globals:
+  Function:
+    Runtime:     nodejs22.x
+    Timeout:     30            # seconds; IoT rule has a 30s retry by default
+    MemorySize:  256           # MB; sufficient for DynamoDB + SNS calls
+    Environment:
+      Variables:
+        # Table names — injected as environment variables so Lambda code
+        # reads them via process.env rather than having hard-coded strings.
+        TABLE_CAMPUS_DEVICES:      !Ref CampusDevicesTable
+        TABLE_CAMPUS_READINGS:     !Ref CampusReadingsTable
+        TABLE_CAMPUS_CURRENT:      !Ref CampusCurrentTable
+        TABLE_CAMPUS_ALERTS:       !Ref CampusAlertsTable
+        TABLE_CAMPUS_SYSTEM_STATS: !Ref CampusSystemStatsTable
+        SNS_TOPIC_ARN:             !Ref AlertTopic
+        CAMPUS_ID:                 VIT-CHENNAI
+        READING_TTL_DAYS:          !Ref ReadingTtlDays
+        AWS_REGION:                !Ref AWS::Region
+    Tracing: PassThrough        # X-Ray disabled (not in Free Tier scope)
+
+# ===========================================================================
+# Resources
+# ===========================================================================
+
+Resources:
+
+  # ─── DynamoDB Tables ──────────────────────────────────────────────────────
+
+  # CampusDevices — static device/location configuration
+  # PK: deviceId (String)
+  # Seeded once via script from simulator/devices.json
+  CampusDevicesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: CampusDevices
+      BillingMode: PAY_PER_REQUEST   # On-demand — no provisioned capacity cost
+      AttributeDefinitions:
+        - AttributeName: deviceId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: deviceId
+          KeyType:       HASH
+
+  # CampusReadings — historical time-series readings
+  # PK: deviceId (String)
+  # SK: timestamp (String, ISO-8601)
+  # TTL: expiresAt (Number, Unix epoch seconds)
+  CampusReadingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: CampusReadings
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: deviceId
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: deviceId
+          KeyType:       HASH
+        - AttributeName: timestamp
+          KeyType:       RANGE
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled:       true
+
+  # CampusCurrent — latest snapshot for each device
+  # PK: deviceId (String)
+  # Written on every received telemetry message (upsert/overwrite)
+  CampusCurrentTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: CampusCurrent
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: deviceId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: deviceId
+          KeyType:       HASH
+
+  # CampusAlerts — alert event history
+  # PK: campusId (String) — always 'VIT-CHENNAI'
+  # SK: timestamp#alertId
+  CampusAlertsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: CampusAlerts
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: campusId
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: campusId
+          KeyType:       HASH
+        - AttributeName: sk
+          KeyType:       RANGE
+
+  # CampusSystemStats — aggregate processing counters
+  # PK: metricId (String) — always 'GLOBAL'
+  CampusSystemStatsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: CampusSystemStats
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: metricId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: metricId
+          KeyType:       HASH
+
+  # ─── SNS Topic — Alert Notifications ──────────────────────────────────────
+
+  # Sends email alerts when a threshold is breached.
+  # IMPORTANT: After creating this topic, you MUST confirm the subscription
+  # from the email address specified in AlertEmailAddress.
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: CampusSenseAlerts
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref AlertEmailAddress
+
+  # ─── IAM Role for Processor Lambda ────────────────────────────────────────
+
+  # This role grants the Processor Lambda the minimum permissions it needs:
+  # - Read/write to all five DynamoDB tables
+  # - Publish to the SNS topic
+  # - Write logs to CloudWatch
+  ProcessorLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: CampusSenseProcessorRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CampusSenseProcessorPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt CampusDevicesTable.Arn
+                  - !GetAtt CampusReadingsTable.Arn
+                  - !GetAtt CampusCurrentTable.Arn
+                  - !GetAtt CampusAlertsTable.Arn
+                  - !GetAtt CampusSystemStatsTable.Arn
+              - Effect: Allow
+                Action: sns:Publish
+                Resource: !Ref AlertTopic
+
+  # ─── IAM Role for API Lambda ───────────────────────────────────────────────
+
+  # The API Lambda only needs to READ from DynamoDB — it never writes alerts
+  # or reads statistics (except for the /system endpoint).
+  ApiLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: CampusSenseApiRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CampusSenseApiPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem    # for POST /telemetry which also writes
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt CampusDevicesTable.Arn
+                  - !GetAtt CampusReadingsTable.Arn
+                  - !GetAtt CampusCurrentTable.Arn
+                  - !GetAtt CampusAlertsTable.Arn
+                  - !GetAtt CampusSystemStatsTable.Arn
+              - Effect: Allow
+                Action: sns:Publish
+                Resource: !Ref AlertTopic  # Needed for POST /telemetry alert path
+
+  # ─── Lambda — IoT Telemetry Processor ─────────────────────────────────────
+
+  # Triggered by the IoT Rule below.
+  # Processes one MQTT message at a time.
+  ProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:  CampusSenseProcessor
+      Description:   Processes MQTT telemetry from IoT Core, validates data, stores readings, and triggers alerts.
+      CodeUri:       ./dist/                 # After running: tsc (npm run build in backend/)
+      Handler:       handlers/processor.handler
+      Role:          !GetAtt ProcessorLambdaRole.Arn
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify:     false
+        Target:     es2022
+        EntryPoints:
+          - src/handlers/processor.ts
+
+  # ─── Lambda — REST API Handler ─────────────────────────────────────────────
+
+  # Triggered by API Gateway HTTP API.
+  # Handles all GET and POST routes for the React dashboard.
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:  CampusSenseApi
+      Description:   Handles REST API requests from the React dashboard.
+      CodeUri:       ./dist/
+      Handler:       handlers/api.handler
+      Role:          !GetAtt ApiLambdaRole.Arn
+      Events:
+        ApiProxy:
+          Type:    HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path:  /api/v1/{proxy+}
+            Method: ANY
+        ApiRoot:
+          Type:    HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path:  /api/v1/health
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify:     false
+        Target:     es2022
+        EntryPoints:
+          - src/handlers/api.ts
+
+  # ─── API Gateway — HTTP API ────────────────────────────────────────────────
+
+  # HTTP API is significantly cheaper than REST API and has lower latency.
+  # CORS is configured to allow the S3-hosted frontend to call the API.
+  # IMPORTANT: After deployment, copy the API Gateway URL and set it as
+  # VITE_API_BASE_URL in the frontend .env before building the frontend.
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: '$default'
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'           # Restrict to your S3 bucket URL after setup
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+
+  # ─── IoT Core Rule ────────────────────────────────────────────────────────
+
+  # This rule subscribes to all campus sensor topics and invokes the
+  # Processor Lambda for each incoming message.
+  # Topic pattern: campus/telemetry/+
+  # The SQL extracts the full payload including the device ID.
+  TelemetryRule:
+    Type: AWS::IoT::TopicRule
+    Properties:
+      RuleName: CampusSenseTelemetryRule
+      TopicRulePayload:
+        Description: Routes MQTT telemetry from all campus sensors to the Processor Lambda.
+        Sql: >
+          SELECT *, topic(3) AS deviceId FROM 'campus/telemetry/+'
+        Actions:
+          - Lambda:
+              FunctionArn: !GetAtt ProcessorFunction.Arn
+
+  # Permission for IoT Core to invoke the Processor Lambda
+  ProcessorLambdaIoTPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action:       lambda:InvokeFunction
+      FunctionName: !GetAtt ProcessorFunction.Arn
+      Principal:    iot.amazonaws.com
+      SourceArn:    !GetAtt TelemetryRule.Arn
+
+  # ─── CloudWatch Log Groups ─────────────────────────────────────────────────
+
+  # Explicit log groups with a 30-day retention policy (Free Tier friendly).
+  # Without this, CloudWatch would keep logs forever.
+  ProcessorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:     /aws/lambda/CampusSenseProcessor
+      RetentionInDays:  30
+
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:     /aws/lambda/CampusSenseApi
+      RetentionInDays:  30
+
+# ===========================================================================
+# Outputs — values you will need AFTER deployment
+# ===========================================================================
+
+Outputs:
+
+  ApiBaseUrl:
+    Description: >
+      API Gateway base URL. Copy this value and set it as VITE_API_BASE_URL
+      in the frontend .env before building and uploading the frontend to S3.
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+
+  ProcessorFunctionArn:
+    Description: ARN of the telemetry processor Lambda function.
+    Value:        !GetAtt ProcessorFunction.Arn
+
+  AlertTopicArn:
+    Description: ARN of the SNS alert topic.
+    Value:        !Ref AlertTopic
+
+  CampusDevicesTableName:
+    Description: Name of the CampusDevices DynamoDB table (use when seeding devices).
+    Value:        !Ref CampusDevicesTable

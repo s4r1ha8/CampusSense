@@ -1,0 +1,52 @@
+%%{init: {'theme': 'default'}}%%
+flowchart TD
+    subgraph TELEMETRY_PATH["Telemetry Ingestion Path"]
+        direction TB
+        VS["Virtual Sensor\n(simulator/src/sensor-generator.ts)\nGenerates temp + humidity per device"]
+        MQTT["MQTT Publish\ntopic: campus/telemetry/deviceId\npayload: JSON TelemetryPayload"]
+        IoT["AWS IoT Core\nTerminates TLS, authenticates certificate"]
+        Rule["IoT Rule\nSQL: SELECT *, topic(3) AS deviceId\nFROM 'campus/telemetry/+'"]
+        Lambda["Processor Lambda\nhandlers/processor.ts"]
+
+        Valid{"Schema\nValidation"}
+        DevChk{"Device\nExists?"}
+        Thresh{"Threshold\nEvaluation"}
+
+        DDB_R["CampusReadings\n(historical time-series)"]
+        DDB_C["CampusCurrent\n(latest snapshot)"]
+        DDB_A["CampusAlerts\n(alert events)"]
+        DDB_S["CampusSystemStats\n(counters)"]
+        SNS["Amazon SNS\nEmail notification\n(first breach only)"]
+        CW["CloudWatch Logs\nStructured JSON logs"]
+
+        VS -->|"generatePayload()"| MQTT
+        MQTT -->|"MQTT/TLS port 8883"| IoT
+        IoT --> Rule
+        Rule -->|"invoke"| Lambda
+        Lambda --> Valid
+        Valid -->|"INVALID: increment invalidMessages"| DDB_S
+        Valid -->|"VALID"| DevChk
+        DevChk -->|"UNKNOWN: log + reject"| DDB_S
+        DevChk -->|"KNOWN"| Thresh
+        Thresh -->|"save reading"| DDB_R
+        Thresh -->|"upsert snapshot"| DDB_C
+        Thresh -->|"ALERT transition\n(write alert record)"| DDB_A
+        Thresh -->|"ALERT: first breach"| SNS
+        Thresh -->|"increment counters"| DDB_S
+        Lambda -->|"all results"| CW
+    end
+
+    subgraph API_PATH["API / Dashboard Read Path"]
+        direction TB
+        UI["React Dashboard\nfrontend/src/pages/*"]
+        GW["API Gateway\nHTTP API"]
+        APILambda["API Lambda\nhandlers/api.ts"]
+        DDB_Read["DynamoDB\n(read from all tables)"]
+
+        UI -->|"HTTPS GET/POST"| GW
+        GW -->|"Lambda proxy"| APILambda
+        APILambda -->|"Query / GetItem / Scan"| DDB_Read
+        DDB_Read -->|"JSON response"| APILambda
+        APILambda -->|"200 JSON"| GW
+        GW -->|"CORS response"| UI
+    end

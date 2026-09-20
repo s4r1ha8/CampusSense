@@ -1,0 +1,23 @@
+{
+  "name": "campus-temp-simulator",
+  "version": "1.0.0",
+  "description": "Virtual IoT simulator for CampusSense — 50 logical campus sensor devices",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build":    "tsc",
+    "simulate": "node --loader ts-node/esm src/index.ts",
+    "dev":      "node --loader ts-node/esm src/index.ts --interval=60",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "aws-iot-device-sdk-v2": "^1.18.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.0",
+    "vitest": "^1.6.0"
+  }
+}
