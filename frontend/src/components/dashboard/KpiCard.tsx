@@ -9,10 +9,10 @@ interface Props {
 }
 
 const COLOR_MAP: Record<string, string> = {
-  success: 'var(--success)',
-  danger:  'var(--danger)',
-  warning: 'var(--warning)',
-  normal:  'var(--text)',
+  success: 'var(--status-nominal)',
+  danger:  'var(--status-critical)',
+  warning: 'var(--status-warning)',
+  normal:  'var(--on-surface)',
 };
 
 export default function KpiCard({ label, value, icon, color = 'normal', subtext }: Props) {

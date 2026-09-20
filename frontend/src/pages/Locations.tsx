@@ -44,7 +44,7 @@ export default function Locations({ onSelectDevice }: Props) {
 
       <div className="controls-bar">
         <div style={{position:'relative',flex:1,minWidth:220}}>
-          <Search size={14} style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--text-muted)'}}/>
+          <Search size={14} style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--on-surface-variant)'}}/>
           <input
             className="search-input"
             style={{paddingLeft:34}}

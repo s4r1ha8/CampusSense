@@ -27,7 +27,8 @@ export default function HistoryChart({ readings, metric, threshold }: Props) {
   const values = sampled.map(r => metric === 'temperature' ? r.temperature : r.humidity);
   const unit   = metric === 'temperature' ? '°C' : '%';
 
-  const lineColor = 'rgb(99,102,241)';
+  const lineColor = metric === 'temperature' ? '#0ea5e9' : '#10b981';
+  const bgColor   = metric === 'temperature' ? 'rgba(14, 165, 233, 0.1)' : 'rgba(16, 185, 129, 0.1)';
 
   const data = {
     labels,
@@ -36,7 +37,7 @@ export default function HistoryChart({ readings, metric, threshold }: Props) {
         label:           `${metric === 'temperature' ? 'Temperature' : 'Humidity'} ${unit}`,
         data:            values,
         borderColor:     lineColor,
-        backgroundColor: 'rgba(99,102,241,0.08)',
+        backgroundColor: bgColor,
         fill:            true,
         tension:         0.35,
         pointRadius:     2,
@@ -56,10 +57,10 @@ export default function HistoryChart({ readings, metric, threshold }: Props) {
   const options = {
     responsive: true,
     interaction: { intersect: false, mode: 'index' as const },
-    plugins: { legend: { labels: { color: '#8892a4', font: { size: 12 } } } },
+    plugins: { legend: { labels: { color: '#64748b', font: { size: 12, family: "'Inter', sans-serif" } } } },
     scales: {
-      x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8892a4', maxTicksLimit: 12 } },
-      y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8892a4' } },
+      x: { grid: { color: 'rgba(51, 65, 85, 0.35)' }, ticks: { color: '#64748b', maxTicksLimit: 12 } },
+      y: { grid: { color: 'rgba(51, 65, 85, 0.35)' }, ticks: { color: '#64748b' } },
     },
   };
 

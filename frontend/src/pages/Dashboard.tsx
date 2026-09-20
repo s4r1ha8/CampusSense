@@ -57,7 +57,7 @@ export default function Dashboard({ onViewDevice }: Props) {
         </div>
       )}
 
-      {error && <div className="state-placeholder"><p style={{color:'var(--danger)'}}>⚠ {error}</p></div>}
+      {error && <div className="state-placeholder"><p style={{color:'var(--status-critical)'}}>⚠ {error}</p></div>}
 
       {!loading && !error && (
         <>
@@ -86,7 +86,7 @@ export default function Dashboard({ onViewDevice }: Props) {
           {alertReadings.length > 0 && (
             <>
               <div className="card-title" style={{marginBottom:12}}>
-                <AlertTriangle size={16} color="var(--danger)"/> Active Alerts
+                <AlertTriangle size={16} color="var(--status-critical)"/> Active Alerts
               </div>
               <div className="grid-3" style={{marginBottom:28}}>
                 {alertReadings.map(r => (

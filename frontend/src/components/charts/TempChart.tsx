@@ -34,7 +34,7 @@ export default function TempChart({ readings, metric }: Props) {
   }
 
   const alertColor = 'rgba(239,68,68,0.7)';
-  const normColor  = metric === 'temperature' ? 'rgba(99,102,241,0.7)' : 'rgba(59,130,246,0.7)';
+  const normColor  = metric === 'temperature' ? 'rgba(14, 165, 233, 0.7)' : 'rgba(16, 185, 129, 0.7)';
 
   const data = {
     labels,
@@ -50,8 +50,8 @@ export default function TempChart({ readings, metric }: Props) {
     responsive: true,
     plugins:    { legend: { display: false }, tooltip: { callbacks: { label: (c: any) => ` ${c.raw} sensors` } } },
     scales: {
-      x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8892a4' } },
-      y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8892a4', precision: 0 } },
+      x: { grid: { color: 'rgba(51, 65, 85, 0.35)' }, ticks: { color: '#64748b' } },
+      y: { grid: { color: 'rgba(51, 65, 85, 0.35)' }, ticks: { color: '#64748b', precision: 0 } },
     },
   };
 

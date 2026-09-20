@@ -38,7 +38,7 @@ export default function SensorCard({ reading, device, onClick }: Props) {
       <div className="sensor-readings">
         <div className="sensor-reading">
           <div className="sensor-reading-label">Temp</div>
-          <div className="sensor-reading-value" style={{ color: isAlert ? 'var(--danger)' : 'var(--text)' }}>
+          <div className="sensor-reading-value" style={{ color: isAlert ? 'var(--status-critical)' : 'var(--on-surface)' }}>
             {reading.temperature}<span className="sensor-reading-unit">°C</span>
           </div>
         </div>

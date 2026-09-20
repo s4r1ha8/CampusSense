@@ -35,7 +35,7 @@ export default function LocationDetail({ deviceId, onBack }: Props) {
     <div>
       <div className="detail-header">
         <div>
-          <button className="back-btn" onClick={onBack}><ArrowLeft size={14}/> Back</button>
+          <button className="btn-secondary" onClick={onBack}><ArrowLeft size={14}/> Back</button>
           <div className="detail-title" style={{marginTop:12}}>{device.locationName}</div>
           <div className="detail-meta">{device.building} · {device.room} · <span className={`type-badge type-${device.type}`}>{device.type.replace('_',' ')}</span></div>
         </div>
@@ -46,19 +46,19 @@ export default function LocationDetail({ deviceId, onBack }: Props) {
       <div className="grid-2" style={{marginBottom:24}}>
         <div className="card">
           <div className="card-title"><Thermometer size={16}/> Temperature</div>
-          <div style={{fontSize:56,fontWeight:700,lineHeight:1,color: current.temperature > device.temperatureThresholdC ? 'var(--danger)' : 'var(--success)'}}>
+          <div style={{fontSize:56,fontWeight:700,lineHeight:1,color: current.temperature > device.temperatureThresholdC ? 'var(--status-critical)' : 'var(--status-nominal)'}}>
             {current.temperature}°C
           </div>
-          <div style={{marginTop:8,color:'var(--text-muted)',fontSize:13}}>
+          <div style={{marginTop:8,color:'var(--on-surface-variant)',fontSize:13}}>
             Threshold: <strong>{device.temperatureThresholdC}°C</strong>
           </div>
         </div>
         <div className="card">
           <div className="card-title"><Droplets size={16}/> Humidity</div>
-          <div style={{fontSize:56,fontWeight:700,lineHeight:1,color: current.humidity > device.humidityThresholdPercent ? 'var(--danger)' : 'var(--success)'}}>
+          <div style={{fontSize:56,fontWeight:700,lineHeight:1,color: current.humidity > device.humidityThresholdPercent ? 'var(--status-critical)' : 'var(--status-nominal)'}}>
             {current.humidity}%
           </div>
-          <div style={{marginTop:8,color:'var(--text-muted)',fontSize:13}}>
+          <div style={{marginTop:8,color:'var(--on-surface-variant)',fontSize:13}}>
             Threshold: <strong>{device.humidityThresholdPercent}%</strong>
           </div>
         </div>
@@ -79,7 +79,7 @@ export default function LocationDetail({ deviceId, onBack }: Props) {
       {/* Recent readings table */}
       <div className="card">
         <div className="card-title"><Clock size={16}/> Recent Readings</div>
-        <table className="history-table">
+        <table className="data-table">
           <thead>
             <tr><th>Time</th><th>Temperature</th><th>Humidity</th><th>Status</th></tr>
           </thead>
@@ -87,8 +87,8 @@ export default function LocationDetail({ deviceId, onBack }: Props) {
             {recentHistory.map((r, i) => (
               <tr key={i}>
                 <td>{new Date(r.timestamp).toLocaleString()}</td>
-                <td style={{color: r.temperature > device.temperatureThresholdC ? 'var(--danger)' : 'inherit'}}>{r.temperature}°C</td>
-                <td style={{color: r.humidity    > device.humidityThresholdPercent ? 'var(--danger)' : 'inherit'}}>{r.humidity}%</td>
+                <td style={{color: r.temperature > device.temperatureThresholdC ? 'var(--status-critical)' : 'inherit'}}>{r.temperature}°C</td>
+                <td style={{color: r.humidity    > device.humidityThresholdPercent ? 'var(--status-critical)' : 'inherit'}}>{r.humidity}%</td>
                 <td><StatusBadge status={r.status}/></td>
               </tr>
             ))}

@@ -35,8 +35,11 @@ export default function App() {
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <h1><Thermometer size={16} style={{display:'inline',marginRight:6}}/>CampusSense</h1>
-          <p>VIT Chennai</p>
+          <div className="sidebar-brand-info">
+            <h1>CampusSense</h1>
+            <p>VIT Chennai Monitor</p>
+          </div>
+          <Thermometer size={20} color="var(--on-surface-variant)" />
         </div>
 
         <nav className="sidebar-nav">
@@ -53,10 +56,17 @@ export default function App() {
         </nav>
 
         <div className="sidebar-footer">
-          Environmental Monitoring
-          {useMock && <span className="mock-badge">MOCK</span>}
-          <br />
-          <span style={{fontSize:10}}>AWS Free Tier Architecture</span>
+          {useMock ? (
+            <div className="mode-indicator mode-demo">
+              <div className="pulse-dot" style={{ background: 'var(--status-warning)', boxShadow: '0 0 8px rgba(245, 158, 11, 0.45)' }}></div>
+              LOCAL DEMO MODE
+            </div>
+          ) : (
+            <div className="mode-indicator mode-live">
+              <div className="pulse-dot"></div>
+              AWS LIVE CONNECTED
+            </div>
+          )}
         </div>
       </aside>
 

@@ -32,15 +32,15 @@ export default function SystemMonitor() {
         <div className="card-title"><Activity size={16}/> Pipeline Status</div>
         <div style={{display:'flex',gap:24,flexWrap:'wrap'}}>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
-            <CheckCircle2 size={18} color="var(--success)"/>
-            <span style={{fontSize:14}}>IoT Processor Lambda — <strong style={{color:'var(--success)'}}>Operational</strong></span>
+            <CheckCircle2 size={18} color="var(--status-nominal)"/>
+            <span style={{fontSize:14}}>IoT Processor Lambda — <strong style={{color:'var(--status-nominal)'}}>Operational</strong></span>
           </div>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
-            <CheckCircle2 size={18} color="var(--success)"/>
-            <span style={{fontSize:14}}>API Lambda — <strong style={{color:'var(--success)'}}>Operational</strong></span>
+            <CheckCircle2 size={18} color="var(--status-nominal)"/>
+            <span style={{fontSize:14}}>API Lambda — <strong style={{color:'var(--status-nominal)'}}>Operational</strong></span>
           </div>
         </div>
-        <div style={{marginTop:12,fontSize:12,color:'var(--text-muted)'}}>
+        <div style={{marginTop:12,fontSize:12,color:'var(--on-surface-variant)'}}>
           Last processed: {stats.lastProcessedAt ? new Date(stats.lastProcessedAt).toLocaleString() : 'No data'}
         </div>
       </div>
@@ -70,9 +70,9 @@ export default function SystemMonitor() {
       {/* Last error */}
       {stats.lastErrorMessage && (
         <div className="card">
-          <div className="card-title"><XCircle size={16} color="var(--danger)"/> Last Error</div>
-          <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:6}}>{stats.lastErrorAt ? new Date(stats.lastErrorAt).toLocaleString() : '—'}</div>
-          <div style={{fontFamily:'monospace',fontSize:13,background:'var(--bg-card-2)',padding:'10px 14px',borderRadius:6,color:'var(--danger)'}}>{stats.lastErrorMessage}</div>
+          <div className="card-title"><XCircle size={16} color="var(--status-critical)"/> Last Error</div>
+          <div style={{fontSize:13,color:'var(--on-surface-variant)',marginBottom:6}}>{stats.lastErrorAt ? new Date(stats.lastErrorAt).toLocaleString() : '—'}</div>
+          <div style={{fontFamily:'monospace',fontSize:13,background:'var(--surface-level-2)',padding:'10px 14px',borderRadius:6,color:'var(--status-critical)'}}>{stats.lastErrorMessage}</div>
         </div>
       )}
     </div>
